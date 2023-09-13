@@ -30,7 +30,11 @@ route.get("/", (req: Request, res: Response) => {
 
 route.get("/movies", async (req: Request, res: Response) => {
   const url = `https://www.imdb.com/find/?${qs.stringify(req.query)}`;
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: {
+      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    },
+  });
 
   const body = await response.text();
 
