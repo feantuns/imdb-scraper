@@ -22,7 +22,8 @@ function getMoviesSearch(body: string) {
       const movie = {
         name: link.text(),
         id: link.attr("href")?.split("/")[2],
-        cover: $(this).find("img").attr("src"),
+        src: $(this).find("img").attr("src"),
+        srcset: $(this).find("img").attr("srcset"),
       };
       movies.push(movie);
     });
