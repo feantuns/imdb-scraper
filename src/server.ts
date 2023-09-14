@@ -15,15 +15,17 @@ app.use(express.json());
 function getMoviesSearch(body: string) {
   const $ = cheerio.load(body);
   let movies: any = [];
-  $("ul.ipc-metadata-list > li").each(function (this: cheerio.Element) {
-    const link = $(this).find("a");
-    const movie = {
-      name: link.text(),
-      id: link.attr("href")?.split("/")[2],
-      cover: $(this).find("img").attr("src"),
-    };
-    movies.push(movie);
-  });
+  $("ul.ipc-metadata-list > li")
+    .slice(0, 5)
+    .each(function (this: cheerio.Element) {
+      const link = $(this).find("a");
+      const movie = {
+        name: link.text(),
+        id: link.attr("href")?.split("/")[2],
+        cover: $(this).find("img").attr("src"),
+      };
+      movies.push(movie);
+    });
 
   return movies;
 }
