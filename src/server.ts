@@ -2,8 +2,11 @@ import express from "express";
 import { Router, Request, Response } from "express";
 import cheerio from "cheerio";
 import qs from "qs";
+import cors from "cors";
 
 const app = express();
+
+app.use(cors());
 
 const route = Router();
 
