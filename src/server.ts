@@ -17,6 +17,23 @@ function getMoviesSearch(body: string) {
     const movie = {
       name: link.text(),
       id: link.attr("href")?.split("/")[2],
+      cover: $(this).find("img").attr("src"),
+    };
+    movies.push(movie);
+  });
+
+  return movies;
+}
+
+function getRelatedMovies(body: string) {
+  const $ = cheerio.load(body);
+  let movies: any = [];
+  $(`.ipc-poster-card`).each(function (this: cheerio.Element) {
+    const link = $(this).find("a");
+    const movie = {
+      name: link.text(),
+      id: link.attr("href")?.split("/")[2],
+      cover: $(this).find("img").attr("src"),
     };
     movies.push(movie);
   });
@@ -39,6 +56,21 @@ route.get("/movies", async (req: Request, res: Response) => {
   const body = await response.text();
 
   const movies = await getMoviesSearch(body);
+
+  res.json(movies);
+});
+
+route.get("/movies/related/:id", async (req: Request, res: Response) => {
+  const url = `https://www.imdb.com/title/${req.params.id}`;
+  const response = await fetch(url, {
+    headers: {
+      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    },
+  });
+
+  const body = await response.text();
+
+  const movies = await getRelatedMovies(body);
 
   res.json(movies);
 });
