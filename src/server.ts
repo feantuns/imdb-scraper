@@ -34,7 +34,7 @@ function getMoviesSearch(body: string) {
 function getRelatedMovies(body: string) {
   const $ = cheerio.load(body);
   let movies: any = [];
-  $(`.ipc-poster-card`).each(function (this: cheerio.Element) {
+  $(`.ipc-metadata-list-summary-item`).each(function (this: cheerio.Element) {
     const link = $(this).find("a");
     const movie = {
       name: link.text(),
