@@ -1,86 +1,87 @@
 import express from "express";
 import { Router, Request, Response } from "express";
-import cheerio from "cheerio";
-import qs from "qs";
 import cors from "cors";
 
 const app = express();
 
 app.use(cors());
+app.use(express.json());
 
 const route = Router();
 
-app.use(express.json());
-
-function getMoviesSearch(body: string) {
-  const $ = cheerio.load(body);
-  let movies: any = [];
-  $("ul.ipc-metadata-list > li")
-    .slice(0, 5)
-    .each(function (this: cheerio.Element) {
-      const link = $(this).find("a");
-      const movie = {
-        name: link.text(),
-        id: link.attr("href")?.split("/")[2],
-        src: $(this).find("img").attr("src"),
-        srcset: $(this).find("img").attr("srcset"),
-      };
-      movies.push(movie);
-    });
-
-  return movies;
-}
-
-function getRelatedMovies(body: string) {
-  const $ = cheerio.load(body);
-  let movies: any = [];
-  $(`.ipc-metadata-list-summary-item`).each(function (this: cheerio.Element) {
-    const link = $(this).find("a");
-    const movie = {
-      name: link.text(),
-      id: link.attr("href")?.split("/")[2],
-      cover: $(this).find("img").attr("src"),
-    };
-    movies.push(movie);
-  });
-
-  return movies;
-}
+const IMDB_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+};
 
 route.get("/", (req: Request, res: Response) => {
-  res.json({ messae: "Hello world" });
+  res.json({ message: "Hello world" });
 });
 
 route.get("/movies", async (req: Request, res: Response) => {
-  const url = `https://www.imdb.com/find/?${qs.stringify(req.query)}`;
-  const response = await fetch(url, {
-    headers: {
-      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-    },
-  });
+  const query = req.query.q as string;
 
-  const body = await response.text();
+  if (!query) {
+    res.status(400).json({ error: "Query param 'q' is required" });
+    return;
+  }
 
-  const movies = await getMoviesSearch(body);
+  const url = `https://v3.sg.media-imdb.com/suggestion/x/${encodeURIComponent(query)}.json`;
+  const response = await fetch(url, { headers: IMDB_HEADERS });
+  const data = (await response.json()) as any;
+
+  const movies = (data.d ?? [])
+    .filter((item: any) => item.qid === "movie" || item.qid === "tvSeries")
+    .slice(0, 5)
+    .map((item: any) => ({
+      name: item.l,
+      id: item.id,
+      year: item.y,
+      cast: item.s,
+      src: item.i?.imageUrl ?? null,
+    }));
 
   res.json(movies);
 });
 
 route.get("/movies/related/:id", async (req: Request, res: Response) => {
-  const url = `https://www.imdb.com/title/${req.params.id}`;
-  const response = await fetch(url, {
-    headers: {
-      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-    },
+  const { id } = req.params;
+
+  const query = `{
+    title(id: "${id}") {
+      moreLikeThisTitles(first: 5) {
+        edges {
+          node {
+            id
+            titleText { text }
+            primaryImage { url }
+            releaseYear { year }
+          }
+        }
+      }
+    }
+  }`;
+
+  const response = await fetch("https://api.graphql.imdb.com/", {
+    method: "POST",
+    headers: { ...IMDB_HEADERS, "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
   });
 
-  const body = await response.text();
+  const data = (await response.json()) as any;
+  const edges = data?.data?.title?.moreLikeThisTitles?.edges ?? [];
 
-  const movies = await getRelatedMovies(body);
+  const movies = edges.map((edge: any) => ({
+    name: edge.node.titleText?.text,
+    id: edge.node.id,
+    year: edge.node.releaseYear?.year,
+    cover: edge.node.primaryImage?.url ?? null,
+  }));
 
   res.json(movies);
 });
 
 app.use(route);
 
-app.listen(3333, () => "server running on port 3333");
+app.listen(3333, () => console.log("server running on port 3333"));
