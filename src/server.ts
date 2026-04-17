@@ -131,6 +131,48 @@ route.get("/movies", async (req: Request, res: Response) => {
   res.json(movies);
 });
 
+route.get("/movies/random", async (req: Request, res: Response) => {
+  const platformsParam = req.query.platforms;
+  const platformsRaw: string[] = platformsParam
+    ? Array.isArray(platformsParam) ? platformsParam as string[] : [platformsParam as string]
+    : [];
+
+  const terms = ["love", "war", "dark", "lost", "man", "night", "dead", "fire", "blood", "city"];
+  const term = terms[Math.floor(Math.random() * terms.length)];
+
+  const url = `https://v3.sg.media-imdb.com/suggestion/x/${encodeURIComponent(term)}.json`;
+  const response = await fetch(url, { headers: IMDB_HEADERS });
+  const data = (await response.json()) as any;
+
+  let movies: MovieItem[] = (data.d ?? [])
+    .filter((item: any) => item.qid === "movie" || item.qid === "tvSeries")
+    .slice(0, 8)
+    .map((item: any) => ({
+      name: item.l,
+      id: item.id,
+      year: item.y,
+      cast: item.s,
+      src: item.i?.imageUrl ?? null,
+    }));
+
+  if (platformsRaw.length > 0) {
+    try {
+      movies = await filterByPlatforms(movies, platformsRaw as Platform[]);
+    } catch {
+      // fallback: ignore platform filter on error
+    }
+  }
+
+  if (movies.length === 0) {
+    res.status(404).json({ error: "No movies found" });
+    return;
+  }
+
+  const random = movies[Math.floor(Math.random() * movies.length)];
+  res.json(random);
+});
+
+
 route.get("/movies/related/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
