@@ -17,9 +17,9 @@ interface MovieItem {
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY ?? '';
 const STREAMING_COUNTRY = process.env.STREAMING_COUNTRY ?? 'us';
 
-async function isAvailableOnPlatform(
+async function isAvailableOnPlatforms(
   imdbId: string,
-  platform: Platform,
+  platforms: Platform[],
   signal: AbortSignal
 ): Promise<boolean> {
   const url = `https://streaming-availability.p.rapidapi.com/shows/${imdbId}?country=${STREAMING_COUNTRY}`;
@@ -34,19 +34,19 @@ async function isAvailableOnPlatform(
 
   const data = (await response.json()) as any;
   const options: any[] = data?.streamingOptions?.[STREAMING_COUNTRY] ?? [];
-  return options.some((opt: any) => opt?.service?.id === platform);
+  return options.some((opt: any) => platforms.includes(opt?.service?.id));
 }
 
-async function filterByPlatform(
+async function filterByPlatforms(
   movies: MovieItem[],
-  platform: Platform
+  platforms: Platform[]
 ): Promise<MovieItem[]> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
 
   try {
     const results = await Promise.allSettled(
-      movies.map((movie) => isAvailableOnPlatform(movie.id, platform, controller.signal))
+      movies.map((movie) => isAvailableOnPlatforms(movie.id, platforms, controller.signal))
     );
 
     return movies.filter((_, i) => {
@@ -84,15 +84,16 @@ route.get("/movies", async (req: Request, res: Response) => {
   }
 
   const platform = req.query.platform as string | undefined;
+  const platformsParam = req.query.platforms;
+  const platformsRaw: string[] = platformsParam
+    ? Array.isArray(platformsParam) ? platformsParam as string[] : [platformsParam as string]
+    : platform ? [platform] : [];
 
-  if (platform !== undefined) {
-    if (platform === '') {
-      res.status(400).json({ error: "platform parameter cannot be empty" });
-      return;
-    }
-    if (!(SUPPORTED_PLATFORMS as readonly string[]).includes(platform)) {
+  if (platformsRaw.length > 0) {
+    const invalid = platformsRaw.find(p => !(SUPPORTED_PLATFORMS as readonly string[]).includes(p));
+    if (invalid) {
       res.status(400).json({
-        error: `Unsupported platform: "${platform}". See supportedPlatforms for valid options.`,
+        error: `Unsupported platform: "${invalid}". See supportedPlatforms for valid options.`,
         supportedPlatforms: SUPPORTED_PLATFORMS,
       });
       return;
@@ -114,9 +115,9 @@ route.get("/movies", async (req: Request, res: Response) => {
       src: item.i?.imageUrl ?? null,
     }));
 
-  if (platform !== undefined) {
+  if (platformsRaw.length > 0) {
     try {
-      movies = await filterByPlatform(movies, platform as Platform);
+      movies = await filterByPlatforms(movies, platformsRaw as Platform[]);
     } catch (err: any) {
       if (err?.name === 'AbortError') {
         res.status(504).json({ error: "Upstream streaming service timed out" });
