@@ -137,6 +137,11 @@ route.get("/movies/random", async (req: Request, res: Response) => {
     ? Array.isArray(platformsParam) ? platformsParam as string[] : [platformsParam as string]
     : [];
 
+  const excludeParam = req.query.exclude;
+  const excludeIds: string[] = excludeParam
+    ? Array.isArray(excludeParam) ? excludeParam as string[] : [excludeParam as string]
+    : [];
+
   const terms = ["love", "war", "dark", "lost", "man", "night", "dead", "fire", "blood", "city"];
   const term = terms[Math.floor(Math.random() * terms.length)];
 
@@ -146,6 +151,7 @@ route.get("/movies/random", async (req: Request, res: Response) => {
 
   let movies: MovieItem[] = (data.d ?? [])
     .filter((item: any) => item.qid === "movie" || item.qid === "tvSeries")
+    .filter((item: any) => !excludeIds.includes(item.id))
     .slice(0, 8)
     .map((item: any) => ({
       name: item.l,
